@@ -1,102 +1,70 @@
 # =============================================================
-# Security-AuditReport.ps1
-# Author: Bravo
-# PCI DSS Requirement 6 and 11 - Security Audit
-# Purpose: Checks patch status, lockout policy and weak protocols
+# Password-ComplianceReport.ps1
+# Author: Opeyemi
+# PCI DSS Requirement 8 - Password Management
+# Purpose: Scans AD accounts for password compliance issues
 # =============================================================
 
 Import-Module ActiveDirectory  # Loads the Active Directory module so we can use AD commands
 
 # Display report header
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host " PCI DSS - Security Audit Report" -ForegroundColor Cyan
+Write-Host " PCI DSS - Password Compliance Report" -ForegroundColor Cyan
 Write-Host " Run Date: $(Get-Date -Format 'dd/MM/yyyy HH:mm')" -ForegroundColor Cyan  # Timestamps the report
 Write-Host "==========================================" -ForegroundColor Cyan
 
-# =============================================================
-# CHECK 1 - Account Lockout Policy
-# PCI DSS Requirement 8 requires lockout after maximum 6 failed attempts
-# =============================================================
-Write-Host "`n--- Account Lockout Policy ---" -ForegroundColor Yellow
+# Get all enabled user accounts from Active Directory with the properties we need to check
+# Properties retrieved: PasswordNeverExpires, PasswordNotRequired, PasswordLastSet, SamAccountName, DisplayName
+$AllUsers = Get-ADUser -Filter {Enabled -eq $true} -Properties `
+    PasswordNeverExpires, `
+    PasswordNotRequired, `
+    PasswordLastSet, `
+    SamAccountName, `
+    DisplayName
 
-$LockoutPolicy = Get-ADDefaultDomainPasswordPolicy  # Retrieves the current domain password policy
-$LockoutThreshold = $LockoutPolicy.LockoutThreshold  # Extracts the lockout threshold value
+$NonCompliant = @()  # Creates an empty list to store non-compliant accounts
 
-if ($LockoutThreshold -eq 0) {
-    Write-Host "FAIL - Account lockout is DISABLED" -ForegroundColor Red  # Lockout is completely off - critical finding
-    Write-Host "PCI DSS Requirement: Maximum 6 attempts before lockout" -ForegroundColor White
-} elseif ($LockoutThreshold -le 6) {
-    Write-Host "PASS - Lockout threshold: $LockoutThreshold attempts" -ForegroundColor Green  # Meets PCI DSS requirement
-} else {
-    Write-Host "FAIL - Lockout threshold too high: $LockoutThreshold attempts" -ForegroundColor Red  # Too many attempts allowed
-    Write-Host "PCI DSS Requirement: Maximum 6 attempts" -ForegroundColor White
-}
+foreach ($User in $AllUsers) {  # Loops through every enabled account one by one
+    $Issues = @()  # Creates an empty list to store issues found for this specific account
 
-# =============================================================
-# CHECK 2 - Minimum Password Length
-# PCI DSS Requirement 8 requires minimum 12 characters
-# =============================================================
-Write-Host "`n--- Password Length Policy ---" -ForegroundColor Yellow
+    # Check 1 - Password never expires
+    # PCI DSS Requirement 8 requires passwords to be changed regularly
+    if ($User.PasswordNeverExpires -eq $true) {
+        $Issues += "Password Never Expires"  # Adds this issue to the list if found
+    }
 
-$MinPasswordLength = $LockoutPolicy.MinPasswordLength  # Extracts the minimum password length from the policy
+    # Check 2 - Password not required
+    # Every account must have a password per PCI DSS Requirement 8
+    if ($User.PasswordNotRequired -eq $true) {
+        $Issues += "Password Not Required"  # Adds this issue to the list if found
+    }
 
-if ($MinPasswordLength -ge 12) {
-    Write-Host "PASS - Minimum password length: $MinPasswordLength characters" -ForegroundColor Green  # Meets PCI DSS requirement
-} else {
-    Write-Host "FAIL - Minimum password length too short: $MinPasswordLength characters" -ForegroundColor Red  # Below requirement
-    Write-Host "PCI DSS Requirement: Minimum 12 characters" -ForegroundColor White
-}
+    # Check 3 - Password not changed in 90 days
+    # PCI DSS requires regular password changes
+    if ($User.PasswordLastSet -lt (Get-Date).AddDays(-90)) {
+        $Issues += "Password Not Changed in 90+ Days"  # Adds this issue to the list if found
+    }
 
-# =============================================================
-# CHECK 3 - Weak Protocol Check
-# PCI DSS bans SSL 2.0, SSL 3.0 and TLS 1.0 as they are insecure
-# =============================================================
-Write-Host "`n--- Weak Protocol Check ---" -ForegroundColor Yellow
-
-$SSLPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols"  # Registry path where protocol settings are stored
-
-$WeakProtocols = @("SSL 2.0", "SSL 3.0", "TLS 1.0")  # List of protocols banned by PCI DSS
-
-foreach ($Protocol in $WeakProtocols) {  # Checks each weak protocol one by one
-    $ProtocolPath = "$SSLPath\$Protocol\Server"  # Builds the full registry path for this protocol
-    
-    if (Test-Path $ProtocolPath) {  # Checks if this protocol has a registry entry
-        $Enabled = (Get-ItemProperty -Path $ProtocolPath -Name "Enabled" -ErrorAction SilentlyContinue).Enabled  # Gets the enabled value
-        
-        if ($Enabled -eq 0) {
-            Write-Host "PASS - $Protocol is DISABLED" -ForegroundColor Green  # Protocol is correctly disabled
-        } else {
-            Write-Host "FAIL - $Protocol is ENABLED - Disable immediately" -ForegroundColor Red  # Critical security risk
+    # If any issues were found for this account add it to the non-compliant list
+    if ($Issues.Count -gt 0) {
+        $NonCompliant += [PSCustomObject]@{
+            Username     = $User.DisplayName  # The account username
+            Issues       = ($Issues -join " | ")  # Joins multiple issues into one readable string
+            LastChanged  = $User.PasswordLastSet  # When the password was last changed
         }
-    } else {
-        Write-Host "PASS - $Protocol not configured (disabled by default)" -ForegroundColor Green  # Not present means disabled
     }
 }
 
-# =============================================================
-# CHECK 4 - Patch Status
-# PCI DSS Requirement 6 requires critical patches within 30 days
-# =============================================================
-Write-Host "`n--- Patch Status Check ---" -ForegroundColor Yellow
-
-$LastUpdate = (Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 1)  # Gets the most recently installed patch
-
-if ($LastUpdate) {
-    $DaysSinceUpdate = (Get-Date) - $LastUpdate.InstalledOn  # Calculates how many days since last patch
-    Write-Host "Last patch installed: $($LastUpdate.InstalledOn.ToString('dd/MM/yyyy'))" -ForegroundColor White  # Shows patch date
-    Write-Host "Days since last patch: $($DaysSinceUpdate.Days)" -ForegroundColor White  # Shows days since patched
-    
-    if ($DaysSinceUpdate.Days -le 30) {
-        Write-Host "PASS - System patched within last 30 days" -ForegroundColor Green  # Meets PCI DSS requirement
-    } else {
-        Write-Host "FAIL - System not patched in $($DaysSinceUpdate.Days) days" -ForegroundColor Red  # Critical finding
-        Write-Host "PCI DSS Requirement: Critical patches within 30 days" -ForegroundColor White
-    }
+# Display results
+if ($NonCompliant.Count -eq 0) {
+    Write-Host "`nAll accounts are PCI DSS compliant." -ForegroundColor Green  # No issues found
 } else {
-    Write-Host "WARNING - Could not retrieve patch information" -ForegroundColor Yellow  # Unable to check patch status
+    Write-Host "`nNon-compliant accounts found: $($NonCompliant.Count)" -ForegroundColor Yellow  # Shows total count
+    Write-Host ""
+    $NonCompliant | Format-Table -AutoSize  # Displays results in a clean table format
 }
 
 # Display report footer
-Write-Host "`n==========================================" -ForegroundColor Cyan
-Write-Host " Audit Complete" -ForegroundColor Cyan
+Write-Host "==========================================" -ForegroundColor Cyan
+Write-Host " Report Complete" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
