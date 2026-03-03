@@ -28,7 +28,7 @@ if ($InactiveAccounts.Count -eq 0) {
     Write-Host "`nInactive accounts found: $($InactiveAccounts.Count)" -ForegroundColor Yellow  # Shows how many were found
     
     foreach ($Account in $InactiveAccounts) {  # Loops through each inactive account one by one
-        Write-Host "`nDisabling: $($Account.SamAccountName)" -ForegroundColor Red  # Shows which account is being disabled
+        Write-Host "`nDisabling: $($Account.DisplayName) ($($Account.SamAccountName))" -ForegroundColor Red  # Shows full name and username of account being disabled  # Shows which account is being disabled
         Write-Host "  Last Logon: $($Account.LastLogonDate)" -ForegroundColor White  # Shows when they last logged in
         
         Disable-ADAccount -Identity $Account.SamAccountName  # Disables the account in Active Directory
@@ -41,3 +41,4 @@ Write-Host "`n==========================================" -ForegroundColor Cyan
 Write-Host " Report Complete" -ForegroundColor Cyan
 
 Write-Host "==========================================" -ForegroundColor Cyan
+
