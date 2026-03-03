@@ -1,6 +1,6 @@
 # =============================================================
 # Disable-InactiveAccounts.ps1
-# Author: Bravo
+# Author: Opeyemi
 # PCI DSS Requirement 8 - User Access Management
 # Purpose: Finds and disables AD accounts inactive for 90+ days
 # =============================================================
@@ -19,7 +19,7 @@ Write-Host "==========================================" -ForegroundColor Cyan
 
 # Search Active Directory for enabled accounts that haven't logged in since the cutoff date
 $InactiveAccounts = Get-ADUser -Filter {
-    LastLogonDate -lt $CutoffDate -and Enabled -eq $true  # Only finds accounts still enabled but inactive
+    LastLogonDate -lt $CutoffDate -and Enabled -eq $true 
 } -Properties LastLogonDate, DisplayName, SamAccountName  # Retrieves these specific properties for each account
 
 if ($InactiveAccounts.Count -eq 0) {
@@ -41,4 +41,5 @@ Write-Host "`n==========================================" -ForegroundColor Cyan
 Write-Host " Report Complete" -ForegroundColor Cyan
 
 Write-Host "==========================================" -ForegroundColor Cyan
+
 
