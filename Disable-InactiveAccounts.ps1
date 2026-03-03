@@ -39,4 +39,5 @@ if ($InactiveAccounts.Count -eq 0) {
 # Display report footer
 Write-Host "`n==========================================" -ForegroundColor Cyan
 Write-Host " Report Complete" -ForegroundColor Cyan
+
 Write-Host "==========================================" -ForegroundColor Cyan
