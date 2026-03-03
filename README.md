@@ -34,7 +34,6 @@ VMware Workstation
 - Windows Server 2022 (Domain Controller)  
 - Active Directory (DC.local)  
 - PowerShell Security Automation Scripts  
-- CSV Compliance & Audit Reports  
 
 The scripts interact directly with Active Directory to enforce PCI DSS–aligned security controls and generate audit-ready evidence.
 
@@ -67,8 +66,8 @@ This script scans every enabled account in Active Directory and checks three thi
 | Username | Issue | 
 |---|---|
 | Administrator | Password Never Expires |
-| nbottger | Password Never Expires |
-| sbanwait | Password Not Required |
+| Neil Bottger | Password Never Expires |
+| Surpreet Banwait | Password Not Required |
 
 Shereen Sembi's account was correctly identified as compliant and excluded from the report.
 
