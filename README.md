@@ -87,7 +87,7 @@ This script runs a full security audit across the server checking four things �
 | SSL 2.0 | PASS |
 | SSL 3.0 | PASS |
 | TLS 1.0 | PASS |
-| Patch Status | FAIL — Not patched in 1460 days |
+| Patch Status | PASS — Patched 0 days ago |
 
 **After remediation — PASS results:**
 
